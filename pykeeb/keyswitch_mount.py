@@ -4,9 +4,9 @@ from .pykeeb import *
 class Keyswitch_mount:
 	#width is X, length is Y
 	thickness = 3
-	alps_keyswitch = Import('/usr/models/matias.stl').color('Gray')
-	mx_keyswitch = Import('/usr/models/cherry.stl').color('Gray')
-	dsa_key = Import('/usr/models/dsa_1u.stl').color('White') #18x18x8mm 
+	alps_keyswitch = Import(r'C:\\Users\\Dean\\Documents\\GitHub\\pykeeb\\pykeeb\\models\\matias.stl').color('Gray')
+	mx_keyswitch = Import(r'C:\\Users\\Dean\\Documents\\GitHub\\pykeeb\\pykeeb\\models\\cherry.stl').color('Gray')
+	dsa_key = Import(r'C:\\Users\\Dean\\Documents\\GitHub\\pykeeb\\pykeeb\\models\\dsa_1u.stl').color('White') #18x18x8mm 
 	def __init__(self, transformations, ik=False, switch_type='alps', mount_length=DSA_KEY_WIDTH, mount_width=DSA_KEY_WIDTH, mx_notches=True):
 		"""Sets up single switch-mount geometry, with transformations, W.R.T. switch type."""
 		mx_length = 14.4
