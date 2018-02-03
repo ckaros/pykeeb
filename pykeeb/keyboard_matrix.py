@@ -39,50 +39,63 @@ class Keyboard_matrix:
 		self.generate()
 
 
-	def arc_rows(self, R):
-		"""This function 2-dimensionally projects the keyboard rows onto a circle with radius R on the x-z axes."""
+	def arc_rows(self, R,toarc='all'):
+		"""This function 2-dimensionally projects the keyboard rows onto a circle with radius R on the y-z axes."""
 
 		#TODO: Make the focus of the circle adjustable
-
+		if toarc=='all':
+			toarc=range(self.columns)
+			print('all cols')
+		
 		unit_width=(self.row_spacing+self.mount_width)
 		unitangle=degrees(2*asin(unit_width/(2*R)))
 
 
-		focus_x= self.origin[0]+((self.rows/2)*unit_width)
+		focus_y= self.origin[0]+(((self.rows-1)/2)*unit_width)
 		focus_z=self.origin[2]+R
 
 		
 		for row in range(self.rows):
-		    x=row*unit_width
+			y=row*unit_width
+			theta=-(((self.rows-1)/2)-row)*unitangle
+			print(theta)
+			for col in toarc:
+				if theta<=90:
+					zt=focus_z-((cos(radians(theta))*R))
+					yt=(focus_y+(sin(radians(theta))*(R+7)))-y
+					self.im[row][col]= list(map(sum,zip(self.im[row][col],[0, yt, zt, theta, 0, 0])))
+				else:
+					print('droping row %i'%row)
+		return Cube([2,2,300]).translate([0,focus_y,0])
 
-		    theta=-(((self.rows-1)/2)-row)*unitangle
-
-		    zt=focus_z-((cos(radians(theta))*R))
-		    xt=(focus_x+(sin(radians(theta))*(R+7)))-x
-		    self.rm[row]= [0, xt, zt, theta, 0, 0]
-
-	def arc_cols(self, R):
-		"""This function 2-dimensionally projects the keyboard columns onto a circle with radius R on the y-z axes."""
+	def arc_cols(self, R,toarc='all'):
+		"""This function 2-dimensionally projects the keyboard columns onto a circle with radius R on the x-z axes."""
 
 		#TODO: Make the focus of the circle adjustable
-
+		if toarc=='all':
+			toarc=range(self.rows)
+			print('all rows')
+		
 		unit_width=(self.column_spacing+self.mount_width)
 		unitangle=degrees(2*asin(unit_width/(2*R)))
 
 
-		focus_y= self.origin[0]+((self.columns/2)*unit_width)
+		focus_x= self.origin[0]+(((self.columns-1)/2)*unit_width)
 		focus_z=self.origin[2]+R
 
 		
 		for col in range(self.columns):
-		    y=col*unit_width
+			x=col*unit_width
+			theta=-(((self.columns-1)/2)-col)*unitangle
 
-		    theta=-(((self.columns-1)/2)-col)*unitangle
-
-		    zt=focus_z-((cos(radians(theta))*R))
-		    yt=(focus_y+(sin(radians(theta))*(R+7)))-y
-		    self.cm[col]= [yt, 0, zt, 0, -theta, 0]
-
+			for row in toarc:
+				if theta<=90:
+					zt=focus_z-((cos(radians(theta))*R))
+					xt=(focus_x+(sin(radians(theta))*(R+7)))-x
+					self.im[row][col]= list(map(sum,zip(self.im[row][col],[xt, 0, zt, 0, -theta, 0])))
+				else:
+					print('droping col %i'%col)
+		return Cube([2,2,300]).translate([focus_x,0,0])
 
 
 
