@@ -39,26 +39,28 @@ class Keyboard_matrix:
 		self.generate()
 
 
-	def arc_rows(self, R,toarc='all'):
+	def arc_rows(self, R,toarc='all',focus_shift=0):
 		"""This function 2-dimensionally projects the keyboard rows onto a circle with radius R on the y-z axes."""
 
 		#TODO: Make the focus of the circle adjustable
 		if toarc=='all':
 			toarc=range(self.columns)
+			#print('all cols')
 		
 		unit_width=(self.row_spacing+self.mount_width)
 		unitangle=degrees(2*asin(unit_width/(2*R)))
 
 
-		focus_y= self.origin[0]+(((self.rows-1)/2)*unit_width)
+		focus_y= self.origin[0]+(((self.rows-1)/2)*unit_width)+focus_shift
 		focus_z=self.origin[2]+R
 
+		anglestart=degrees(asin((self.origin[0]-focus_y)/R))
 		
-		for row in range(self.rows):
-			y=row*unit_width
-			theta=-(((self.rows-1)/2)-row)*unitangle
-			print(theta)
-			for col in toarc:
+		for col in toarc:
+			for row in range(self.rows):
+				y=row*unit_width
+				#theta=-(((self.rows-1)/2)-row)*unitangle
+				theta=(anglestart+(row*unitangle))
 				if theta<=90:
 					zt=focus_z-((cos(radians(theta))*R))
 					yt=(focus_y+(sin(radians(theta))*(R+7)))-y
@@ -66,26 +68,28 @@ class Keyboard_matrix:
 				else:
 					print('Warning: row %i is outside the circle radius'%row)
 
-	def arc_cols(self, R,toarc='all'):
+	def arc_cols(self, R,toarc='all',focus_shift=0):
 		"""This function 2-dimensionally projects the keyboard columns onto a circle with radius R on the x-z axes."""
 
 		#TODO: Make the focus of the circle adjustable
 		if toarc=='all':
 			toarc=range(self.rows)
+			print('all rows')
 		
 		unit_width=(self.column_spacing+self.mount_width)
 		unitangle=degrees(2*asin(unit_width/(2*R)))
 
 
-		focus_x= self.origin[0]+(((self.columns-1)/2)*unit_width)
+		focus_x= self.origin[0]+(((self.columns-1)/2)*unit_width)+focus_shift
 		focus_z=self.origin[2]+R
 
+		anglestart=degrees(asin((self.origin[0]-focus_x)/R))
 		
-		for col in range(self.columns):
-			x=col*unit_width
-			theta=-(((self.columns-1)/2)-col)*unitangle
-
-			for row in toarc:
+		for row in toarc:
+			for col in range(self.columns):
+				x=col*unit_width
+				#theta=-(((self.columns-1)/2)-col)*unitangle		
+				theta=(anglestart+(col*unitangle))
 				if theta<=90:
 					zt=focus_z-((cos(radians(theta))*R))
 					xt=(focus_x+(sin(radians(theta))*(R+7)))-x
@@ -117,7 +121,6 @@ class Keyboard_matrix:
 		self.front_wall_hulls = [project((self.sm[self.rows-1][column].get_corner('fr', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
 					+ self.sm[self.rows-1][column+1].get_corner('fl', self.wall_x, self.wall_thickness, 0, self.wall_extrude))).hull() for column in range(self.columns - 1)]
 
-		self.back_edge=[self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude) for column in range(self.columns)]
 		self.back_wall = [project(self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude)) for column in range(self.columns)]
 		self.back_wall_hulls = [project((self.sm[0][column].get_corner('br', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
 					+ self.sm[0][column+1].get_corner('bl', self.wall_x, self.wall_thickness, 0, self.wall_extrude))).hull() for column in range(self.columns - 1)]

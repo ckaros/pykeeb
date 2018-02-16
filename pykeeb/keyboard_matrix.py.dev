@@ -39,60 +39,100 @@ class Keyboard_matrix:
 		self.generate()
 
 
-	def arc_rows(self, R,toarc='all'):
+	def arc_rows(self, R,toarc='all',focus_shift=0):
 		"""This function 2-dimensionally projects the keyboard rows onto a circle with radius R on the y-z axes."""
 
 		#TODO: Make the focus of the circle adjustable
 		if toarc=='all':
 			toarc=range(self.columns)
+			#print('all cols')
 		
 		unit_width=(self.row_spacing+self.mount_width)
 		unitangle=degrees(2*asin(unit_width/(2*R)))
 
 
-		focus_y= self.origin[0]+(((self.rows-1)/2)*unit_width)
+		focus_y= self.origin[0]+((((self.rows-1)/2)+focus_shift)*unit_width)
 		focus_z=self.origin[2]+R
 
-		
+		lasttheta=0
 		for row in range(self.rows):
-			y=row*unit_width
-			theta=-(((self.rows-1)/2)-row)*unitangle
-			print(theta)
+			print('row is %i'%row)
+			#y=row*unit_width
+			#theta=-(((self.rows-1)/2)-row)*unitangle
+			#print(theta)
 			for col in toarc:
-				if theta<=90:
-					zt=focus_z-((cos(radians(theta))*R))
-					yt=(focus_y+(sin(radians(theta))*(R+7)))-y
-					self.im[row][col]= list(map(sum,zip(self.im[row][col],[0, yt, zt, theta, 0, 0])))
-				else:
-					print('Warning: row %i is outside the circle radius'%row)
+				y=(row*unit_width)+self.rm[row][1]+self.im[row][col][1]
+				try:
+					theta1 =degrees(asin((y-focus_y)/R))
 
-	def arc_cols(self, R,toarc='all'):
+					if abs(theta1-lasttheta)<unitangle:
+						theta=lasttheta+unitangle
+						print(y)
+						print(theta1)
+						print(lasttheta)
+					else:
+						theta=lasttheta+theta1
+						
+					lasttheta=theta1
+					
+					if theta<=90:
+						zt=focus_z-((cos(radians(theta))*R))
+						yt=(focus_y+(sin(radians(theta))*(R+7)))-y
+						self.im[row][col]= list(map(sum,zip(self.im[row][col],[0, yt, zt, theta, 0, 0])))
+					else:
+						print('Warning: row %i is outside the circle radius'%row)
+				except ValueError:
+					print('Warning: row %i is outside the circle radius'%row)
+	def arc_cols(self, R,toarc='all',focus_shift=0):
 		"""This function 2-dimensionally projects the keyboard columns onto a circle with radius R on the x-z axes."""
 
 		#TODO: Make the focus of the circle adjustable
 		if toarc=='all':
 			toarc=range(self.rows)
+			#print('all rows')
 		
 		unit_width=(self.column_spacing+self.mount_width)
 		unitangle=degrees(2*asin(unit_width/(2*R)))
+		print('uw=%f'%unit_width)
+		print('ua=%f'%unitangle)
 
-
-		focus_x= self.origin[0]+(((self.columns-1)/2)*unit_width)
+		focus_x= self.origin[0]+((((self.columns-1)/2)+focus_shift)*unit_width)
 		focus_z=self.origin[2]+R
-
+		print(focus_x)
 		
-		for col in range(self.columns):
-			x=col*unit_width
-			theta=-(((self.columns-1)/2)-col)*unitangle
+		for row in toarc:
+		
+			
+			#theta=-(((self.columns-1)/2)-col)*unitangle
+			x=(0*unit_width)+self.cm[0][row]+self.im[row][0][0]
+			lasttheta=degrees(asin((x-focus_x)/R))
+			
+			for col in range(self.columns):
+				print('col is %i'%col)
+				x=(col*unit_width)+self.cm[col][0]+self.im[row][col][0]
+				try:
+					theta1 =degrees(asin((x-focus_x)/R))
 
-			for row in toarc:
-				if theta<=90:
-					zt=focus_z-((cos(radians(theta))*R))
-					xt=(focus_x+(sin(radians(theta))*(R+7)))-x
-					self.im[row][col]= list(map(sum,zip(self.im[row][col],[xt, 0, zt, 0, -theta, 0])))
-				else:
-					print('Warning: col %i is outside circle radius'%col)
-
+					if abs(theta1-lasttheta)<unitangle:
+						theta=lasttheta+unitangle
+						print('x is %f'%x)
+						print('theta is %f'%theta1)
+						print('last theta is %f'%lasttheta)
+					else:
+						theta=lasttheta+theta1
+						print('theta diff is %f'%(theta1-lasttheta))
+						print('x is %f'%x)
+					lasttheta=theta1
+					if theta<=90:
+						zt=focus_z-((cos(radians(theta))*R))
+						xt=(focus_x+(sin(radians(theta))*(R+7)))-x
+						print('xt is %f'%xt)
+						self.im[row][col]= list(map(sum,zip(self.im[row][col],[xt, 0, zt, 0, -theta, 0])))
+					
+					else:
+						print('Warning: col %i is outside circle radius'%col)
+				except ValueError:
+					print('Warning: col %i is outside the circle radius'%col)
 
 
 	def generate(self):	
@@ -117,7 +157,6 @@ class Keyboard_matrix:
 		self.front_wall_hulls = [project((self.sm[self.rows-1][column].get_corner('fr', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
 					+ self.sm[self.rows-1][column+1].get_corner('fl', self.wall_x, self.wall_thickness, 0, self.wall_extrude))).hull() for column in range(self.columns - 1)]
 
-		self.back_edge=[self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude) for column in range(self.columns)]
 		self.back_wall = [project(self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude)) for column in range(self.columns)]
 		self.back_wall_hulls = [project((self.sm[0][column].get_corner('br', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
 					+ self.sm[0][column+1].get_corner('bl', self.wall_x, self.wall_thickness, 0, self.wall_extrude))).hull() for column in range(self.columns - 1)]
