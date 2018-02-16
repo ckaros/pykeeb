@@ -45,6 +45,7 @@ class Keyboard_matrix:
 		#TODO: Make the focus of the circle adjustable
 		if toarc=='all':
 			toarc=range(self.columns)
+			print('all cols')
 		
 		unit_width=(self.row_spacing+self.mount_width)
 		unitangle=degrees(2*asin(unit_width/(2*R)))
@@ -64,7 +65,7 @@ class Keyboard_matrix:
 					yt=(focus_y+(sin(radians(theta))*(R+7)))-y
 					self.im[row][col]= list(map(sum,zip(self.im[row][col],[0, yt, zt, theta, 0, 0])))
 				else:
-					print('Warning: row %i is outside the circle radius'%row)
+					print('row %i is outside the circle radius'%row)
 
 	def arc_cols(self, R,toarc='all'):
 		"""This function 2-dimensionally projects the keyboard columns onto a circle with radius R on the x-z axes."""
@@ -72,6 +73,7 @@ class Keyboard_matrix:
 		#TODO: Make the focus of the circle adjustable
 		if toarc=='all':
 			toarc=range(self.rows)
+			print('all rows')
 		
 		unit_width=(self.column_spacing+self.mount_width)
 		unitangle=degrees(2*asin(unit_width/(2*R)))
@@ -91,7 +93,7 @@ class Keyboard_matrix:
 					xt=(focus_x+(sin(radians(theta))*(R+7)))-x
 					self.im[row][col]= list(map(sum,zip(self.im[row][col],[xt, 0, zt, 0, -theta, 0])))
 				else:
-					print('Warning: col %i is outside circle radius'%col)
+					print('col %i is outside circle radius'%col)
 
 
 
@@ -117,7 +119,6 @@ class Keyboard_matrix:
 		self.front_wall_hulls = [project((self.sm[self.rows-1][column].get_corner('fr', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
 					+ self.sm[self.rows-1][column+1].get_corner('fl', self.wall_x, self.wall_thickness, 0, self.wall_extrude))).hull() for column in range(self.columns - 1)]
 
-		self.back_edge=[self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude) for column in range(self.columns)]
 		self.back_wall = [project(self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude)) for column in range(self.columns)]
 		self.back_wall_hulls = [project((self.sm[0][column].get_corner('br', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
 					+ self.sm[0][column+1].get_corner('bl', self.wall_x, self.wall_thickness, 0, self.wall_extrude))).hull() for column in range(self.columns - 1)]
