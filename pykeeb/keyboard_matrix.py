@@ -4,7 +4,7 @@ from .keyswitch_mount import *
 from math import asin,sin,cos,acos,degrees,radians
 
 class Keyboard_matrix:
-	def __init__(self, r, c, row_spacing=1.5, column_spacing=1.5, plate_thickness=3, origin=[0,0,0], x_tent=0, y_tent=0, z_tent=0, mount_length=DSA_KEY_WIDTH, mount_width=DSA_KEY_WIDTH, switch_type='alps', mx_notches=True):
+	def __init__(self, r, c, row_spacing=1.5, column_spacing=1.5, plate_thickness=3, origin=[0,0,0], x_tent=0, y_tent=0, z_tent=0, mount_length=DSA_KEY_WIDTH, mount_width=DSA_KEY_WIDTH,switch_type='alps', mx_notches=True):
 		self.rows = r
 		self.columns = c
 		self.modifiers = modifiers
@@ -31,13 +31,18 @@ class Keyboard_matrix:
 		self.wall_y = .01 #for extra wall_hull thickness
 		self.switch_type = switch_type
 		self.mx_notches = mx_notches
-
+		self.cap_top_height=7+self.plate_thickness
 		self.rm = self.row_modifiers = [[0, 0, 0, 0, 0, 0]  for b in range(r)] 
 		self.cm = self.column_modifiers = [[0, 0, 0, 0, 0, 0]  for a in range(c)] 
 		self.im = self.indiv_modifiers = [[[0, 0, 0, 0, 0, 0] for a in range(c)] for b in range(r)] 
 		self.ik = self.ignore_keys = [[False for a in range(c)] for b in range(r)] 
+		self.proj=False
+		self.projparams=False
+		self.ms=self.modsize=[[1 for a in range(c)] for b in range(r)]
+		self.rotm=self.rotatemod=[[0 for a in range(c)] for b in range(r)]
+		self.topwall=10
 		self.generate()
-
+		
 
 	def arc_rows(self, R,toarc='all'):
 		"""This function 2-dimensionally projects the keyboard rows onto a circle with radius R on the y-z axes."""
@@ -58,7 +63,6 @@ class Keyboard_matrix:
 		for row in range(self.rows):
 			y=row*unit_width
 			theta=-(((self.rows-1)/2)-row)*unitangle
-			print(theta)
 			for col in toarc:
 				if theta<=90:
 					zt=focus_z-((cos(radians(theta))*R))
@@ -94,9 +98,43 @@ class Keyboard_matrix:
 					self.im[row][col]= list(map(sum,zip(self.im[row][col],[xt, 0, zt, 0, -theta, 0])))
 				else:
 					print('col %i is outside circle radius'%col)
+					
+	def zarc_cols(self, R,toarc='all'):
+		"""This function 2-dimensionally projects the keyboard columns onto a circle with radius R on the x-z axes."""
+
+		#TODO: Make the focus of the circle adjustable
+		if toarc=='all':
+			toarc=range(self.rows)
+			print('all rows')
+		
+		unit_width=(self.column_spacing+self.mount_width)
+		unitangle=degrees(2*asin(unit_width/(2*R)))
 
 
+		focus_x= self.origin[0]+(((self.columns-1)/2)*unit_width)
+		focus_y=self.origin[1]+R
 
+		
+		for col in range(self.columns):
+			x=col*unit_width
+			theta=-(((self.columns-1)/2)-col)*unitangle
+
+			for row in toarc:
+				if theta<=90:
+					yt=focus_y-((cos(radians(theta))*R))
+					xt=(focus_x+(sin(radians(theta))*(R+7)))-x
+					self.im[row][col]= list(map(sum,zip(self.im[row][col],[xt, yt, 0, 0, 0, theta])))
+				else:
+					print('col %i is outside circle radius'%col)
+
+
+	def spherical_proj(self,alpha,beta):
+		row_radius=((self.mount_length+0.5)/2)/(sin(alpha/2))+self.cap_top_height
+		col_radius=((self.mount_width+2)/2)/(sin(beta/2))+self.cap_top_height
+		self.projparams=[[[row_radius,-degrees(alpha*(((self.rows-1)/2)-row)),col_radius,degrees(beta*(((self.columns-1)/2)-column))] for column in range(self.columns)] for row in range(self.rows)]
+		#self.projparams=[[[row_radius,-degrees(alpha*(((self.rows-1)/2)-row)),col_radius,degrees(beta*(((self.columns-1)/2)-sum(self.cs[1:][:column])))] for column in range(self.columns)] for row in range(self.rows)]
+		self.proj=True
+		
 	def generate(self):	
 		"""Generates the matrix w.r.t current modifier data.  Needs to be called for any modifier changes to be reflected before calling get_matrix()."""
 
@@ -104,7 +142,11 @@ class Keyboard_matrix:
 		modifiers = [[modifiers[row][column] + [self.ik[row][column]] for column in range(self.columns)] for row in range(self.rows)]
 
 		#def __init__(self, transformations, ik=False, switch_type='alps', mount_length=DSA_KEY_WIDTH, mount_width=DSA_KEY_WIDTH, mx_notches=True):
-		self.sm = self.switch_matrix = [[Keyswitch_mount([list(map(sum, zip(modifiers[row][column][:3], [column * (self.mount_width + self.column_spacing), row * (self.mount_length + self.row_spacing), 0]))) + modifiers[row][column][3:6], [self.origin[0], self.origin[1], self.origin[2], self.x_tent, self.y_tent, self.z_tent]], modifiers[row][column][6], self.switch_type, self.mount_length, self.mount_width, self.mx_notches) for column in range(self.columns)] for row in range(self.rows)]
+		if self.proj==True:
+			self.sm = self.switch_matrix = [[Keyswitch_mount([modifiers[row][column][:6], [self.origin[0], self.origin[1], self.origin[2], self.x_tent, self.y_tent, self.z_tent]], modifiers[row][column][6], self.switch_type, self.mount_length, self.mount_width, self.mx_notches,self.projparams[row][column],self.ms[row][column],self.rotm[row][column]) for column in range(self.columns)] for row in range(self.rows)]
+
+		else:
+			self.sm = self.switch_matrix = [[Keyswitch_mount([list(map(sum, zip(modifiers[row][column][:3], [column * (self.mount_width + self.column_spacing), row * (self.mount_length + self.row_spacing), 0]))) + modifiers[row][column][3:6], [self.origin[0], self.origin[1], self.origin[2], self.x_tent, self.y_tent, self.z_tent]], modifiers[row][column][6], self.switch_type, self.mount_length, self.mount_width, self.mx_notches,size=self.ms[row][column],rotate=self.rotm[row][column]) for column in range(self.columns)] for row in range(self.rows)]
 
 		self.row_hulls = [[(self.sm[row][column].get_front(self.row_hull_thickness, self.row_hull_extrude) + self.sm[row+1][column].get_back(self.row_hull_thickness, self.row_hull_extrude)).hull() for column in range(self.columns)] for row in range(self.rows-1)] 
 
@@ -115,11 +157,13 @@ class Keyboard_matrix:
 					+ self.sm[row+1][column].get_corner('br', self.ch_thickness, self.ch_thickness)
 					+ self.sm[row+1][column+1].get_corner('bl', self.ch_thickness, self.ch_thickness)).hull() for column in range(self.columns-1)] for row in range(self.rows-1)] 
 
-		self.front_wall = [project(self.sm[self.rows-1][column].get_front(self.wall_thickness, self.wall_extrude)) for column in range(self.columns)]
+		self.front_edge=[self.sm[self.rows-1][column].get_front(self.wall_thickness, self.wall_extrude) for column in range(self.columns)]
+		self.front_wall = [project(edge) for edge in self.front_edge]
 		self.front_wall_hulls = [project((self.sm[self.rows-1][column].get_corner('fr', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
 					+ self.sm[self.rows-1][column+1].get_corner('fl', self.wall_x, self.wall_thickness, 0, self.wall_extrude))).hull() for column in range(self.columns - 1)]
-
-		self.back_wall = [project(self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude)) for column in range(self.columns)]
+		
+		self.back_edge=[self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude) for column in range(self.columns)]
+		self.back_wall = [project(edge) for edge in self.back_edge]
 		self.back_wall_hulls = [project((self.sm[0][column].get_corner('br', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
 					+ self.sm[0][column+1].get_corner('bl', self.wall_x, self.wall_thickness, 0, self.wall_extrude))).hull() for column in range(self.columns - 1)]
 
@@ -135,6 +179,124 @@ class Keyboard_matrix:
 		self.front_right_corner = project(self.sm[self.rows-1][self.columns-1].get_corner('fr', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude))
 		self.back_left_corner = project(self.sm[0][0].get_corner('bl', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude))
 		self.back_right_corner = project(self.sm[0][self.columns-1].get_corner('br', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude))
+		
+	def regenerate(self):	
+		"""Generates the matrix w.r.t current modifier data.  Needs to be called for any modifier changes to be reflected before calling get_matrix()."""
+
+		modifiers = [[list(map(sum, zip(self.rm[row], self.cm[column], self.im[row][column]))) for column in range(self.columns)] for row in range(self.rows)]
+		modifiers = [[modifiers[row][column] + [self.ik[row][column]] for column in range(self.columns)] for row in range(self.rows)]
+
+		#def __init__(self, transformations, ik=False, switch_type='alps', mount_length=DSA_KEY_WIDTH, mount_width=DSA_KEY_WIDTH, mx_notches=True):
+		if self.proj==True:
+			self.sm = self.switch_matrix = [[Keyswitch_mount([modifiers[row][column][:6], [self.origin[0], self.origin[1], self.origin[2], self.x_tent, self.y_tent, self.z_tent]], modifiers[row][column][6], self.switch_type, self.mount_length, self.mount_width, self.mx_notches,self.projparams[row][column],self.ms[row][column],self.rotm[row][column]) for column in range(self.columns)] for row in range(self.rows)]
+
+		else:
+			self.sm = self.switch_matrix = [[Keyswitch_mount([list(map(sum, zip(modifiers[row][column][:3], [column * (self.mount_width + self.column_spacing), row * (self.mount_length + self.row_spacing), 0]))) + modifiers[row][column][3:6], [self.origin[0], self.origin[1], self.origin[2], self.x_tent, self.y_tent, self.z_tent]], modifiers[row][column][6], self.switch_type, self.mount_length, self.mount_width, self.mx_notches,size=self.ms[row][column],rotate=self.rotm[row][column]) for column in range(self.columns)] for row in range(self.rows)]
+
+		self.row_hulls = [[(self.sm[row][column].get_front(self.row_hull_thickness, self.row_hull_extrude) + self.sm[row+1][column].get_back(self.row_hull_thickness, self.row_hull_extrude)).hull() for column in range(self.columns)] for row in range(self.rows-1)] 
+
+		self.column_hulls = [[(self.sm[row][column].get_right(self.col_hull_thickness, self.col_hull_extrude) + self.sm[row][column+1].get_left(self.col_hull_thickness, self.col_hull_extrude)).hull() for column in range(self.columns - 1)] for row in range(self.rows)] 
+		
+		self.corner_hulls = [[(self.sm[row][column].get_corner('fr', self.ch_thickness, self.ch_thickness) 
+					+ self.sm[row][column+1].get_corner('fl', self.ch_thickness, self.ch_thickness) 
+					+ self.sm[row+1][column].get_corner('br', self.ch_thickness, self.ch_thickness)
+					+ self.sm[row+1][column+1].get_corner('bl', self.ch_thickness, self.ch_thickness)).hull() for column in range(self.columns-1)] for row in range(self.rows-1)] 
+
+		#front part of case
+		self.front_edge=[self.sm[self.rows-1][column].get_front(self.wall_thickness, self.wall_extrude) for column in range(self.columns)]
+		#self.front_top_wall=[(self.sm[self.rows-1][column].get_front(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall)+self.front_edge[column]).hull() for column in range(self.columns)]
+		
+		self.front_top_wall=[(self.sm[self.rows-1][column].get_front(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall)
+								+self.sm[self.rows-1][column].get_front(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.plate_thickness)).hull() for column in range(self.columns)]
+		
+		self.front_bottom_edge=[(self.sm[self.rows-1][column].get_front(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall))for column in range(self.columns)]
+		self.front_bottom_wall=[project(edge) for edge in self.front_bottom_edge]
+		self.front_wall=[self.front_bottom_wall[column]+self.front_top_wall[column] for column in range(self.columns)]
+		self.front_edge_hulls=[(self.sm[self.rows-1][column].get_corner('fr', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
+					+ self.sm[self.rows-1][column+1].get_corner('fl', self.wall_x, self.wall_thickness, 0, self.wall_extrude)).hull() for column in range(self.columns - 1)]
+		self.front_bottom_edge_hulls=[(self.sm[self.rows-1][column].get_corner('fr', self.wall_x, self.wall_thickness, 0, self.wall_extrude,ztranslate=-self.topwall) 
+					+ self.sm[self.rows-1][column+1].get_corner('fl', self.wall_x, self.wall_thickness, 0, self.wall_extrude,ztranslate=-self.topwall)).hull() for column in range(self.columns - 1)]
+		#self.front_top_wall_hull=[(self.front_edge_hulls[column]+self.front_bottom_edge_hulls[column]).hull() for column in range(self.columns-1)]
+		self.front_top_wall_hull=[((self.sm[self.rows-1][column].get_corner('fr', self.wall_x, self.wall_thickness, 0, self.wall_extrude,ztranslate=-self.plate_thickness) 
+					+ self.sm[self.rows-1][column+1].get_corner('fl', self.wall_x, self.wall_thickness, 0, self.wall_extrude,ztranslate=-self.plate_thickness)).hull()
+					+self.front_bottom_edge_hulls[column]).hull() for column in range(self.columns-1)]
+		self.front_bottom_wall_hull=[project(self.front_bottom_edge_hulls[column]) for column in range(self.columns-1)]
+		self.front_wall_hulls = [self.front_top_wall_hull[column]+self.front_bottom_wall_hull[column] for column in range(self.columns-1)]
+		
+		#back part of case
+		self.back_edge=[self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude) for column in range(self.columns)]
+		#self.back_top_wall=[(self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall)+self.back_edge[column]).hull() for column in range(self.columns)]
+		self.back_top_wall=[(self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall)
+							+self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.plate_thickness)).hull() for column in range(self.columns)]
+		self.back_bottom_edge=[(self.sm[0][column].get_back(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall))for column in range(self.columns)]
+		self.back_bottom_wall=[project(edge) for edge in self.back_bottom_edge]
+		self.back_wall=[self.back_bottom_wall[column]+self.back_top_wall[column] for column in range(self.columns)]
+		self.back_edge_hulls=[(self.sm[0][column].get_corner('br', self.wall_x, self.wall_thickness, 0, self.wall_extrude) 
+					+ self.sm[0][column+1].get_corner('bl', self.wall_x, self.wall_thickness, 0, self.wall_extrude)).hull() for column in range(self.columns - 1)]
+		self.back_bottom_edge_hulls=[(self.sm[0][column].get_corner('br', self.wall_x, self.wall_thickness, 0, self.wall_extrude,ztranslate=-self.topwall) 
+					+ self.sm[0][column+1].get_corner('bl', self.wall_x, self.wall_thickness, 0, self.wall_extrude,ztranslate=-self.topwall)).hull() for column in range(self.columns - 1)]
+		#self.back_top_wall_hull=[(self.back_edge_hulls[column]+self.back_bottom_edge_hulls[column]).hull() for column in range(self.columns-1)]
+		self.back_top_wall_hull=[((self.sm[0][column].get_corner('br', self.wall_x, self.wall_thickness, 0, self.wall_extrude,ztranslate=-self.plate_thickness) 
+					+ self.sm[0][column+1].get_corner('bl', self.wall_x, self.wall_thickness, 0, self.wall_extrude,ztranslate=-self.plate_thickness)).hull()
+								+self.back_bottom_edge_hulls[column]).hull() for column in range(self.columns-1)]
+		self.back_bottom_wall_hull=[project(self.back_bottom_edge_hulls[column]) for column in range(self.columns-1)]
+		self.back_wall_hulls = [self.back_top_wall_hull[column]+self.back_bottom_wall_hull[column] for column in range(self.columns-1)]
+
+		
+		#left part of case
+		self.left_edge = [self.sm[row][0].get_left(self.side_wall_thickness, self.side_extrude) for row in range(self.rows)]
+		#self.left_top_wall=[(self.sm[row][0].get_left(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall)+self.left_edge[row]).hull() for row in range(self.rows)]
+		self.left_top_wall=[(self.sm[row][0].get_left(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall)
+							+self.sm[row][0].get_left(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.plate_thickness)).hull() for row in range(self.rows)]
+		self.left_bottom_edge=[(self.sm[row][0].get_left(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall))for row in range(self.rows)]
+		self.left_bottom_wall=[project(edge) for edge in self.left_bottom_edge]
+		self.left_wall=[self.left_bottom_wall[row]+self.left_top_wall[row] for row in range(self.rows)]
+		self.left_edge_hulls=[(self.sm[row][0].get_corner('fl', self.side_wall_thickness, self.wall_y, self.side_extrude) 
+					+ self.sm[row+1][0].get_corner('bl', self.side_wall_thickness, self.wall_y, self.side_extrude)).hull() for row in range(self.rows - 1)]
+		self.left_bottom_edge_hulls=[(self.sm[row][0].get_corner('fl', self.side_wall_thickness, self.wall_y, self.side_extrude,ztranslate=-self.topwall) 
+					+ self.sm[row+1][0].get_corner('bl', self.side_wall_thickness, self.wall_y, self.side_extrude,ztranslate=-self.topwall)).hull() for row in range(self.rows - 1)]
+		#self.left_top_wall_hull=[(self.left_edge_hulls[row]+self.left_bottom_edge_hulls[row]).hull() for row in range(self.rows-1)]
+		self.left_top_wall_hull=[((self.sm[row][0].get_corner('fl', self.side_wall_thickness, self.wall_y, self.side_extrude,ztranslate=-self.plate_thickness) 
+								+ self.sm[row+1][0].get_corner('bl', self.side_wall_thickness, self.wall_y, self.side_extrude,ztranslate=-self.plate_thickness)).hull()
+								+self.left_bottom_edge_hulls[row]).hull() for row in range(self.rows-1)]
+		self.left_bottom_wall_hull=[project(self.left_bottom_edge_hulls[row]) for row in range(self.rows-1)]
+		self.left_wall_hulls = [self.left_top_wall_hull[row]+self.left_bottom_wall_hull[row] for row in range(self.rows-1)]
+		
+		#right part of case
+		self.right_edge=[self.sm[row][self.columns-1].get_right(self.side_wall_thickness, self.side_extrude) for row in range(self.rows)]
+		#self.right_top_wall=[(self.sm[row][self.columns-1].get_right(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall)+self.right_edge[row]).hull() for row in range(self.rows)]
+		self.right_top_wall=[(self.sm[row][self.columns-1].get_right(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall)
+							+self.sm[row][self.columns-1].get_right(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.plate_thickness)).hull() for row in range(self.rows)]
+		self.right_bottom_edge=[(self.sm[row][self.columns-1].get_right(self.wall_thickness, self.wall_extrude,zoffset=0,ztranslate=-self.topwall))for row in range(self.rows)]
+		self.right_bottom_wall=[project(edge) for edge in self.right_bottom_edge]
+		self.right_wall=[self.right_bottom_wall[row]+self.right_top_wall[row] for row in range(self.rows)]
+		
+		#self.right_wall = [project(edge) for edge in self.right_edge]
+		self.right_edge_hulls=[(self.sm[row][self.columns-1].get_corner('fr', self.side_wall_thickness, self.wall_y, self.side_extrude) 
+					+ self.sm[row+1][self.columns-1].get_corner('br', self.side_wall_thickness, self.wall_y, self.side_extrude)).hull() for row in range(self.rows - 1)]
+		self.right_bottom_edge_hulls=[(self.sm[row][self.columns-1].get_corner('fr', self.side_wall_thickness, self.wall_y, self.side_extrude,ztranslate=-self.topwall) 
+					+ self.sm[row+1][self.columns-1].get_corner('br', self.side_wall_thickness, self.wall_y, self.side_extrude,ztranslate=-self.topwall)).hull() for row in range(self.rows - 1)]
+		#self.right_top_wall_hull=[(self.right_edge_hulls[row]+self.right_bottom_edge_hulls[row]).hull() for row in range(self.rows-1)]
+		self.right_top_wall_hull=[((self.sm[row][self.columns-1].get_corner('fr', self.side_wall_thickness, self.wall_y, self.side_extrude,ztranslate=-self.plate_thickness) 
+									+ self.sm[row+1][self.columns-1].get_corner('br', self.side_wall_thickness, self.wall_y, self.side_extrude,ztranslate=-self.plate_thickness)).hull()
+									+self.right_bottom_edge_hulls[row]).hull() for row in range(self.rows-1)]
+		self.right_bottom_wall_hull=[project(self.right_bottom_edge_hulls[row]) for row in range(self.rows-1)]
+		self.right_wall_hulls = [self.right_top_wall_hull[row]+self.right_bottom_wall_hull[row] for row in range(self.rows-1)]
+		
+		
+		
+		self.front_left_corner = (self.sm[self.rows-1][0].get_corner('fl', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=-self.topwall)+\
+								 self.sm[self.rows-1][0].get_corner('fl', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=0)).hull()+\
+								 project(self.sm[self.rows-1][0].get_corner('fl', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=-self.topwall))
+		self.front_right_corner = (self.sm[self.rows-1][self.columns-1].get_corner('fr', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=-self.topwall)+\
+								  self.sm[self.rows-1][self.columns-1].get_corner('fr', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=0)).hull()+\
+								  project(self.sm[self.rows-1][self.columns-1].get_corner('fr', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=-self.topwall))
+		self.back_left_corner = (self.sm[0][0].get_corner('bl', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=-self.topwall)+\
+							    self.sm[0][0].get_corner('bl', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=0)).hull()+\
+								project(self.sm[0][0].get_corner('bl', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=-self.topwall))
+		self.back_right_corner = (self.sm[0][self.columns-1].get_corner('br', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=-self.topwall)+\
+								  self.sm[0][self.columns-1].get_corner('br', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=0)).hull()+\
+								  project(self.sm[0][self.columns-1].get_corner('br', self.side_extrude, self.wall_extrude, self.side_extrude, self.wall_extrude,ztranslate=-self.topwall))
 
 	def get_matrix(self): #needs more elegant solution, maybe using __add__?
 		x = Cube(0) 
@@ -175,16 +337,32 @@ class Keyboard_matrix:
 
 	def get_plate(self): #needs more elegant solution, maybe using __add__?
 		"""Returns the union of the keyswitch mounts and their connecting hulls to form a plate"""
-		x = Cube(0)
+		x = Cube(0) 
 		for column in range(self.columns):
 			for row in range(self.rows):
 				x += self.sm[row][column].get_switch_at_location() 
-				if column < self.columns - 1:
-					x += self.column_hulls[row][column]
+				if row == 0:
+					x += self.back_edge[column]
+					if column < self.columns - 1:
+						x += self.back_edge_hulls[column]
+				if row == self.rows - 1:
+					x += self.front_edge[column]
+					if column < self.columns - 1:
+						x += self.front_edge_hulls[column]
+				if column == 0:
+					x += self.left_edge[row]
+					if row < self.rows - 1:
+						x += self.left_edge_hulls[row]
+				if column == self.columns - 1:
+					x += self.right_edge[row]
+					if row < self.rows - 1:
+						x += self.right_edge_hulls[row]
 				if row < self.rows - 1:
 					x += self.row_hulls[row][column]
 					if column < self.columns - 1:
 						x += self.corner_hulls[row][column]
+				if column < self.columns - 1:
+					x += self.column_hulls[row][column]
 		return x
 
 
@@ -217,4 +395,73 @@ class Keyboard_matrix:
 					x += self.right_wall[row]
 					if row < self.rows - 1:
 						x += self.right_wall_hulls[row]
+		return x
+		
+		
+	def get_solid(self): #needs more elegant solution, maybe using __add__?
+		x = Cube(0) 
+		for column in range(self.columns):
+			for row in range(self.rows):
+				x += project(self.sm[row][column].get_switch_at_location().hull())
+				if row == 0:
+					x += project(self.back_wall[column])
+					if column < self.columns - 1:
+						x += project(self.back_wall_hulls[column])
+					if column == 0:
+						x += project(self.back_left_corner)
+					if column == self.columns - 1:
+						x += project(self.back_right_corner)
+				if row == self.rows - 1:
+					x += project(self.front_wall[column])
+					if column < self.columns - 1:
+						x += project(self.front_wall_hulls[column])
+					if column == 0:
+						x += project(self.front_left_corner)
+					if column == self.columns - 1:
+						x += project(self.front_right_corner)
+				if column == 0:
+					x += project(self.left_wall[row])
+					if row < self.rows - 1:
+						x += project(self.left_wall_hulls[row])
+				if column == self.columns - 1:
+					x += project(self.right_wall[row])
+					if row < self.rows - 1:
+						x += project(self.right_wall_hulls[row])
+				if row < self.rows - 1:
+					x += project(project(self.row_hulls[row][column]))
+					if column < self.columns - 1:
+						x += project(self.corner_hulls[row][column])
+				if column < self.columns - 1:
+					x += project(self.column_hulls[row][column])
+		return x
+
+		
+	def get_solid_plate(self): #needs more elegant solution, maybe using __add__?
+		"""Returns the union of the keyswitch mounts and their connecting hulls to form a plate"""
+		x = Cube(0) 
+		for column in range(self.columns):
+			for row in range(self.rows):
+				x += (self.sm[row][column].get_switch_at_location()).hull()
+				if row == 0:
+					x += self.back_edge[column]
+					if column < self.columns - 1:
+						x += self.back_edge_hulls[column]
+				if row == self.rows - 1:
+					x += self.front_edge[column]
+					if column < self.columns - 1:
+						x += self.front_edge_hulls[column]
+				if column == 0:
+					x += self.left_edge[row]
+					if row < self.rows - 1:
+						x += self.left_edge_hulls[row]
+				if column == self.columns - 1:
+					x += self.right_edge[row]
+					if row < self.rows - 1:
+						x += self.right_edge_hulls[row]
+				if row < self.rows - 1:
+					x += self.row_hulls[row][column]
+					if column < self.columns - 1:
+						x += self.corner_hulls[row][column]
+				if column < self.columns - 1:
+					x += self.column_hulls[row][column]
 		return x
